@@ -6,7 +6,7 @@ ADD nginx.conf /etc/nginx/
 
 RUN adduser -D -g '' -G www-data www-data
 
-RUN echo "upstream php-upstream { server php:9000; }" > /etc/nginx/conf.d/upstream.conf
+RUN echo "upstream php-upstream { server 127.0.0.1:9000; }" > /etc/nginx/conf.d/upstream.conf
 
 EXPOSE 80
 
