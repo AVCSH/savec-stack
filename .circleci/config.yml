@@ -1,0 +1,117 @@
+build-step: &build-step
+  name: Build application Docker image
+  command: |
+    if [ $CIRCLE_BRANCH = 'master' ]; then
+      docker build -t avcsh/savec-${IMAGE_NAME}:stable -t avcsh/savec-${IMAGE_NAME}:${CIRCLE_SHA1} -t avcsh/savec-${IMAGE_NAME}:latest ./${IMAGE_NAME};
+    else
+      DOTED_BRANCH=$(echo $CIRCLE_BRANCH | tr / .)
+      docker build -t avcsh/savec-${IMAGE_NAME}:${DOTED_BRANCH} -t avcsh/savec-${IMAGE_NAME}:${CIRCLE_SHA1} ./${IMAGE_NAME}
+    fi
+
+deploy-step: &deploy-step
+  name: Push application Docker image
+  command: |
+    docker login -u $DOCKER_USER -p $DOCKER_PASS
+    docker push avcsh/savec-${IMAGE_NAME}:${CIRCLE_SHA1}
+    if [ $CIRCLE_BRANCH = 'master' ]; then \
+      docker push avcsh/savec-${IMAGE_NAME}:stable
+      docker push avcsh/savec-${IMAGE_NAME}:latest
+    else
+      DOTED_BRANCH=$(echo $CIRCLE_BRANCH | tr / .)
+      docker push avcsh/savec-${IMAGE_NAME}:${DOTED_BRANCH}
+    fi
+
+version: 2
+jobs:
+  build-php-base:
+    environment:
+      - IMAGE_NAME: "php-base"
+    working_directory: /src
+    docker:
+      - image: docker:stable-git
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run: *build-step
+      - deploy: *deploy-step
+
+
+  build-php-dev:
+    environment:
+      - IMAGE_NAME: "php-dev"
+    working_directory: /src
+    docker:
+      - image: docker:stable-git
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
+
+      - run:
+          name: Pull and re-tag base image
+          command: |
+            docker pull avcsh/savec-php-base:${CIRCLE_SHA1}
+            docker tag avcsh/savec-php-base:${CIRCLE_SHA1} avcsh/savec-php-base:latest
+
+      - run: *build-step
+      - deploy: *deploy-step
+
+
+  build-php-nginx-prod:
+    environment:
+      - IMAGE_NAME: "php-nginx-prod"
+    working_directory: /src
+    docker:
+      - image: docker:stable-git
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
+
+      - run:
+          name: Pull and re-tag base image
+          command: |
+            docker pull avcsh/savec-php-base:${CIRCLE_SHA1}
+            docker tag avcsh/savec-php-base:${CIRCLE_SHA1} avcsh/savec-php-base:latest
+
+      - run: *build-step
+      - deploy: *deploy-step
+
+
+  build-php-xdebug:
+    environment:
+      - IMAGE_NAME: "php-xdebug"
+    working_directory: /src
+    docker:
+      - image: docker:stable-git
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
+
+      - run:
+          name: Pull and re-tag base image
+          command: |
+            docker pull avcsh/savec-php-dev:${CIRCLE_SHA1}
+            docker tag avcsh/savec-php-dev:${CIRCLE_SHA1} avcsh/savec-php-dev:latest
+
+      - run: *build-step
+      - deploy: *deploy-step
+
+
+workflows:
+  version: 2
+  build-and-push:
+    jobs:
+      - build-php-base
+      - build-php-dev:
+          requires:
+            - build-php-base
+      - build-php-nginx-prod:
+          requires:
+            - build-php-base
+      - build-php-xdebug:
+          requires:
+            - build-php-dev
+
