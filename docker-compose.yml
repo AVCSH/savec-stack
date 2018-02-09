@@ -18,7 +18,7 @@ services:
 
   php-nginx-prod:
     build: php-nginx-prod
-    image: avcsh/php-nginx-prod
+    image: avcsh/savec-php-nginx-prod
     depends_on:
       - php-base
 
